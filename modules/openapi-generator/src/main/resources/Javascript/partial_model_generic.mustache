@@ -26,13 +26,23 @@
 {{/interfaceModels}}{{/useInheritance}}{{#vars}}{{#required}}    _this['{{baseName}}'] = {{name}};{{/required}}
 {{/vars}}{{#parent}}{{^parentModel}}    return _this;
 {{/parentModel}}{{/parent}}  };
+{{#discriminator}}
 
-{{#emitJSDoc}}
+  /**
+   * Pointers to subclass constructors, filled in at runtime by the subclasses.
+   * This is needed in order to avoid cyclical imports.
+   * Used by `constructFromObject`.
+   */
+   exports.mappedSubclasses = {
+   };
+
+{{/discriminator}}{{#emitJSDoc}}
   /**
    * Constructs a <code>{{classname}}</code> from a plain JavaScript object, optionally creating a new instance.
    * Copies all relevant properties from <code>data</code> to <code>obj</code> if supplied or a new instance if not.
    * @param {Object} data The plain JavaScript object bearing properties of interest.
    * @param {{=< >=}}{module:<#invokerPackage><invokerPackage>/</invokerPackage><#modelPackage><modelPackage>/</modelPackage><classname>}<={{ }}=> obj Optional instance to populate.
+   * @param {Boolean} ignoreDiscriminator Optional, if true, do not instantiate subclass according to discriminator value.
    * @return {{=< >=}}{module:<#invokerPackage><invokerPackage>/</invokerPackage><#modelPackage><modelPackage>/</modelPackage><classname>}<={{ }}=> The populated <code>{{classname}}</code> instance.
    */
 {{/emitJSDoc}}
@@ -42,16 +52,23 @@
   }
 {{/vendorExtensions.x-isPrimitive}}
 {{^vendorExtensions.x-isPrimitive}}
-  exports.constructFromObject = function(data, obj) {
-    if (data){{! TODO: support polymorphism: discriminator property on data determines class to instantiate.}} {
+  exports.constructFromObject = function(data, obj, ignoreDiscriminator) {
+    if (data) {
       obj = obj || new exports();
 {{#parent}}{{^parentModel}}      ApiClient.constructFromObject(data, obj, '{{vendorExtensions.x-itemType}}');
-{{/parentModel}}{{/parent}}{{#useInheritance}}{{#parentModel}}      {{classname}}.constructFromObject(data, obj);{{/parentModel}}
-{{#interfaces}}      {{.}}.constructFromObject(data, obj);
-{{/interfaces}}{{/useInheritance}}{{#vars}}      if (data.hasOwnProperty('{{baseName}}')) {
-        obj['{{baseName}}']{{{defaultValueWithParam}}}
+{{/parentModel}}{{/parent}}{{#useInheritance}}{{#parentModel}}      {{classname}}.constructFromObject(data, obj, true);{{/parentModel}}
+{{#interfaces}}      {{.}}.constructFromObject(data, obj, true);
+{{/interfaces}}{{/useInheritance}}{{#discriminator}}      if (!ignoreDiscriminator && data.hasOwnProperty('{{propertyName}}')) {
+        var discriminator = data['{{propertyName}}'];
+        switch (discriminator) { {{#mappedModels}}
+          case '{{mappingName}}': return exports.mappedSubclasses['{{modelName}}'].constructFromObject(data, obj); break;{{/mappedModels}}
+        }
       }
-{{/vars}}    }
+      {{/discriminator}}{{#vars}}
+      if (data.hasOwnProperty('{{baseName}}')) {
+        obj['{{baseName}}']{{{defaultValueWithParam}}}
+      }{{/vars}}
+    }
     return obj;
   }
 {{/vendorExtensions.x-isPrimitive}}
@@ -117,6 +134,12 @@ exports.prototype['{{baseName}}'] = {{#defaultValue}}{{{defaultValue}}}{{/defaul
 {{/items}}
 {{/items.isEnum}}
 {{/vars}}
+
+  var className = '{{classname}}';
+{{#parentModel}}{{#discriminator}}
+  // Register with parent model
+  {{classname}}.mappedSubclasses[className] = exports;
+{{/discriminator}}{{/parentModel}}
 
   return exports;
 {{/model}}{{/models}}}));

@@ -12,6 +12,8 @@
  */
 
 import ApiClient from '../ApiClient';
+import Dog from './Dog';
+import Cat from './Cat';
 
 /**
  * The Animal model module.
